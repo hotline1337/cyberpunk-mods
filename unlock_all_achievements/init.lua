@@ -1,6 +1,65 @@
 local variables = {
-    version = "1.0.0",
-    last_achievement_index = 58
+    version = "1.1.0",
+    achievement_list = {
+        "All The President's Men",
+        "City Lights",
+        "To Bad Decisions!",
+        "Breathtaking",
+        "Bushido and Chill",
+        "Full Body Conversion",
+        "Right Back At Ya",
+        "Dirty Deeds",
+        "The APB is Not Enough",
+        "Easy Come, Easy Go",
+        "To Protect and Serve",
+        "The Wandering Fool",
+        "Autojock",
+        "Frequent Flyer",
+        "Gun Fu",
+        "Gunslinger",
+        "Master Crafter",
+        "Judgment Day",
+        "I Am The Law",
+        "Arachnophobia",
+        "King of Cups",
+        "King of Pentacles",
+        "King of Swords",
+        "King of Wands",
+        "Spin Doctor",
+        "Mean Streets",
+        "Little Tokyo",
+        "Christmas Tree Attack",
+        "The Quick and the Dead",
+        "Must Be Rats",
+        "Never Fade Away",
+        "The Wasteland",
+        "Daemon In The Shell",
+        "Life of the Road",
+        "Relic Ruler",
+        "Stanislavski's Method",
+        "Ten out of Ten",
+        "Temperance",
+        "Rough Landing",
+        "The Devil",
+        "The Fool",
+        "The Hermit",
+        "The High Priestess",
+        "The Lovers",
+        "The Star",
+        "The Sun",
+        "The Tower",
+        "The Wheel of Fortune",
+        "The World",
+        "Greetings from Pacifica!",
+        "The Jungle",
+        "True Soldier",
+        "True Warrior",
+        "Two Heads, One Bullet",
+        "Judy vs Night City",
+        "V for Vendetta",
+        "It's Elementary",
+        "Legend of The Afterlife"
+    } -- Dumped from TweakDB
 }
 
 local settings = {
@@ -16,7 +75,7 @@ local local_player = function()
             return true
         end
     end
-    print("[unlock_all_achievements] Load into the game before using this script")
+    print("[achievement_unlocker] Load into the game before using this script")
     return false
 end
 
@@ -25,7 +84,7 @@ local unlock_all_achievements = function()
         for key, value in pairs(TweakDB:GetRecords("gamedataAchievement_Record")) do
             Game.GetAchievementSystem():UnlockAchievement(value)
         end
-        print("[unlock_all_achievements] Successfully unlocked all achievements")
+        print("[achievement_unlocker] Successfully unlocked all achievements")
     end
 end
 
@@ -36,7 +95,7 @@ local unlock_achievement_index = function(index)
                 Game.GetAchievementSystem():UnlockAchievement(value)
             end
         end
-        print("[unlock_all_achievements] Successfully unlocked achievement at index: " .. index)
+        print("[achievement_unlocker] Successfully unlocked achievement: " .. variables.achievement_list[index])
     end
 end
 
@@ -46,7 +105,7 @@ registerForEvent("onDraw", function()
     end
 
     ImGui.PushStyleVar(ImGuiStyleVar.WindowMinSize, 300, 40)
-    ImGui.Begin("Unlock All Achievements", ImGuiWindowFlags.AlwaysAutoResize)
+    ImGui.Begin("Achievement Unlocker", ImGuiWindowFlags.AlwaysAutoResize)
 
     local unlock_all_toggled = ImGui.Button("Unlock All Achievements")
     if unlock_all_toggled then
@@ -56,13 +115,21 @@ registerForEvent("onDraw", function()
     ImGui.Spacing()
     ImGui.Separator()
     local unlock_specific_toggled = ImGui.Button("Unlock Achievement")
-    local achievement_index = ImGui.SliderInt("Achievement Index", settings.achievement_index, 1, variables.last_achievement_index)
-    if achievement_index ~= settings.achievement_index then
-        settings.achievement_index = achievement_index
-    end
-    
     if unlock_specific_toggled then
-        unlock_achievement_index(achievement_index)
+        unlock_achievement_index(settings.achievement_index)
+    end
+
+    if ImGui.BeginCombo("Achievement Name", variables.achievement_list[settings.achievement_index]) then
+        for index, achievement in ipairs(variables.achievement_list) do
+            local is_selected = (settings.achievement_index == index)
+            if ImGui.Selectable(achievement, is_selected) then
+                settings.achievement_index = index
+            end
+            if is_selected then
+                ImGui.SetItemDefaultFocus()
+            end
+        end
+        ImGui.EndCombo()
     end
 
     ImGui.End()
@@ -70,7 +137,7 @@ registerForEvent("onDraw", function()
 end)
 
 registerForEvent("onInit", function()
-    print("[unlock_all_achievements] Successfully loaded - version: " .. variables.version)
+    print("[achievement_unlocker] Successfully loaded - version: " .. variables.version)
 end)
 
 registerForEvent("onOverlayOpen", function()
