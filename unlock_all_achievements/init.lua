@@ -1,149 +1,138 @@
-local variables = {
-    version = "1.1.0",
-    achievement_list = {
-        "All The President's Men",
-        "City Lights",
-        "To Bad Decisions!",
-        "Breathtaking",
-        "Bushido and Chill",
-        "Full Body Conversion",
-        "Right Back At Ya",
-        "Dirty Deeds",
-        "The APB is Not Enough",
-        "Easy Come, Easy Go",
-        "To Protect and Serve",
-        "The Wandering Fool",
-        "Autojock",
-        "Frequent Flyer",
-        "Gun Fu",
-        "Gunslinger",
-        "Master Crafter",
-        "Judgment Day",
-        "I Am The Law",
-        "Arachnophobia",
-        "King of Cups",
-        "King of Pentacles",
-        "King of Swords",
-        "King of Wands",
-        "Spin Doctor",
-        "Mean Streets",
-        "Little Tokyo",
-        "Christmas Tree Attack",
-        "The Quick and the Dead",
-        "Must Be Rats",
-        "Never Fade Away",
-        "The Wasteland",
-        "Daemon In The Shell",
-        "Life of the Road",
-        "Relic Ruler",
-        "Stanislavski's Method",
-        "Ten out of Ten",
-        "Temperance",
-        "Rough Landing",
-        "The Devil",
-        "The Fool",
-        "The Hermit",
-        "The High Priestess",
-        "The Lovers",
-        "The Star",
-        "The Sun",
-        "The Tower",
-        "The Wheel of Fortune",
-        "The World",
-        "Greetings from Pacifica!",
-        "The Jungle",
-        "True Soldier",
-        "True Warrior",
-        "Two Heads, One Bullet",
-        "Judy vs Night City",
-        "V for Vendetta",
-        "It's Elementary",
-        "Legend of The Afterlife"
-    } -- Dumped from TweakDB
+local mod_state = {
+    version = "2.0.0",
+    is_visible = false,
+    current_idx = 1,
+    cached_achievements = {},
 }
 
-local settings = {
-    is_overlay_open = false,
-    achievement_index = 1
-}
-
-local local_player = function()
-    local player = Game.GetPlayer()
-    if player then
-        local player_position = player:GetWorldPosition()
-        if math.floor(player_position.z) ~= 0 then
+local check_player_state = function()
+    local entity = Game.GetPlayer()
+    if entity then
+        local pos = entity:GetWorldPosition()
+        if math.floor(pos.z) ~= 0 then
             return true
         end
     end
-    print("[achievement_unlocker] Load into the game before using this script")
+
+    print("[achievement_unlocker] Load into the game before using this script (ERROR)")
     return false
 end
 
-local unlock_all_achievements = function()
-    if local_player() then
-        for key, value in pairs(TweakDB:GetRecords("gamedataAchievement_Record")) do
-            Game.GetAchievementSystem():UnlockAchievement(value)
-        end
-        print("[achievement_unlocker] Successfully unlocked all achievements")
+local format_achievement_data = function(record_entry)
+    local id_string = record_entry:EnumName().value
+    local final_name = id_string
+    
+    local status, loc_text = pcall(function()
+        return GetLocalizedText(Game.NameToString(record_entry:DisplayName()))
+    end)
+    
+    if not status or type(loc_text) ~= "string" or string.find(loc_text, "ToCName") or string.find(loc_text, "LocKey") then
+        status, loc_text = pcall(function()
+            return Game.GetLocalizedTextByKey(record_entry:DisplayName())
+        end)
     end
+    
+    if status and type(loc_text) == "string" and loc_text ~= "" and not string.find(loc_text, "ToCName") and not string.find(loc_text, "LocKey") then
+        final_name = loc_text .. " (" .. id_string .. ")"
+    end
+    
+    return { 
+        obj = record_entry, 
+        internal_id = id_string, 
+        display_name = final_name 
+    }
 end
 
-local unlock_achievement_index = function(index)
-    if local_player() then
-        for key, value in pairs(TweakDB:GetRecords("gamedataAchievement_Record")) do
-            if key == index then
-                Game.GetAchievementSystem():UnlockAchievement(value)
-            end
-        end
-        print("[achievement_unlocker] Successfully unlocked achievement: " .. variables.achievement_list[index])
+local init_achievement_database = function()
+    mod_state.cached_achievements = {}
+
+    local db_records = TweakDB:GetRecords("gamedataAchievement_Record")
+    for _, rec in pairs(db_records) do
+        table.insert(mod_state.cached_achievements, format_achievement_data(rec))
     end
+    
+    table.sort(mod_state.cached_achievements, function(left, right) 
+        return left.internal_id < right.internal_id 
+    end)
+    
+    mod_state.current_idx = 1
 end
+
+local unlock_specific_achievement = function(ach_record)
+    if not check_player_state() then 
+        return 
+    end
+
+    Game.GetAchievementSystem():UnlockAchievement(ach_record)
+    print(string.format("[achievement_unlocker] Unlocked: %s", ach_record:EnumName().value))
+end
+
+local unlock_all_achievements = function()
+    if not check_player_state() then 
+        return 
+    end
+    
+    local unlocked_count = 0
+    for i = 1, #mod_state.cached_achievements do
+        Game.GetAchievementSystem():UnlockAchievement(mod_state.cached_achievements[i].obj)
+        unlocked_count = unlocked_count + 1
+    end
+    print(string.format("[achievement_unlocker] Unlocked all achievements (Total: %d)", unlocked_count))
+end
+
+registerForEvent("onInit", function()
+    init_achievement_database()
+    print(string.format("[achievement_unlocker] Successfully loaded - version: %s", mod_state.version))
+end)
 
 registerForEvent("onDraw", function()
-    if not settings.is_overlay_open then 
-        return
+    if not mod_state.is_visible then 
+        return 
     end
 
-    ImGui.PushStyleVar(ImGuiStyleVar.WindowMinSize, 300, 40)
+    ImGui.PushStyleVar(ImGuiStyleVar.WindowMinSize, 320, 50)
     ImGui.Begin("Achievement Unlocker", ImGuiWindowFlags.AlwaysAutoResize)
 
-    local unlock_all_toggled = ImGui.Button("Unlock All Achievements")
-    if unlock_all_toggled then
+    if ImGui.Button("Unlock All Achievements", 220, 30) then
         unlock_all_achievements()
     end
 
-    ImGui.Spacing()
     ImGui.Separator()
-    local unlock_specific_toggled = ImGui.Button("Unlock Achievement")
-    if unlock_specific_toggled then
-        unlock_achievement_index(settings.achievement_index)
+    ImGui.Spacing()
+
+    local dropdown_label = "Select an achievement..."
+    if #mod_state.cached_achievements > 0 and mod_state.cached_achievements[mod_state.current_idx] then
+        dropdown_label = mod_state.cached_achievements[mod_state.current_idx].display_name
     end
 
-    if ImGui.BeginCombo("Achievement Name", variables.achievement_list[settings.achievement_index]) then
-        for index, achievement in ipairs(variables.achievement_list) do
-            local is_selected = (settings.achievement_index == index)
-            if ImGui.Selectable(achievement, is_selected) then
-                settings.achievement_index = index
+    if ImGui.BeginCombo("##AchDropdown", dropdown_label) then
+        for idx, ach in ipairs(mod_state.cached_achievements) do
+            local is_selected = (mod_state.current_idx == idx)
+            if ImGui.Selectable(ach.display_name, is_selected) then
+                mod_state.current_idx = idx
             end
+
             if is_selected then
                 ImGui.SetItemDefaultFocus()
             end
         end
         ImGui.EndCombo()
     end
+    
+    ImGui.SameLine()
+    
+    if ImGui.Button("Unlock Selected") and #mod_state.cached_achievements > 0 then
+        unlock_specific_achievement(mod_state.cached_achievements[mod_state.current_idx].obj)
+    end
 
     ImGui.End()
     ImGui.PopStyleVar(1)
 end)
 
-registerForEvent("onInit", function()
-    print("[achievement_unlocker] Successfully loaded - version: " .. variables.version)
-end)
-
 registerForEvent("onOverlayOpen", function()
-    settings.is_overlay_open = true
+    mod_state.is_visible = true
 end)
 
 registerForEvent("onOverlayClose", function()
-    settings.is_overlay_open = false
+    mod_state.is_visible = false
 end)
